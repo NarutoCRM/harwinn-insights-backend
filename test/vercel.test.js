@@ -11,13 +11,16 @@ process.env.REDIRECT_PARAM_MAP='{"uid":"uid","transactionId":"transactionId","us
 process.env.TRUST_PROXY='';
 const {default:app}=await import('../index.js');
 const origin='https://harwinn-insights-frontend.vercel.app';
+const origins=[origin,'https://harwinninsights.com','https://www.harwinninsights.com'];
 
-test('deployment entry allows only the production frontend origin',async()=>{
- const response=await request(app).get('/health').set('Origin',origin).expect(200);
- assert.equal(response.headers['access-control-allow-origin'],origin);
- assert.match(response.headers.vary,/\bOrigin\b/);
- assert.equal(response.headers['access-control-allow-credentials'],undefined);
- for(const rejected of ['https://attacker.example','null','http://harwinn-insights-frontend.vercel.app',origin+'.attacker.example']) {
+test('deployment entry allows only the three exact production frontend origins',async()=>{
+ for(const allowedOrigin of origins) {
+  const response=await request(app).get('/health').set('Origin',allowedOrigin).expect(200);
+  assert.equal(response.headers['access-control-allow-origin'],allowedOrigin);
+  assert.match(response.headers.vary,/\bOrigin\b/);
+  assert.equal(response.headers['access-control-allow-credentials'],undefined);
+ }
+ for(const rejected of ['https://attacker.example','null',...origins.map(value=>value.replace('https:','http:')),...origins.map(value=>value+'.attacker.example'),'https://preview.harwinninsights.com']) {
   for(const method of ['get','post','options']) {
    const denied=await request(app)[method]('/api/auth/login').set('Origin',rejected).expect(403);
    assert.equal(denied.body.error.code,'CORS_ORIGIN_DENIED');
@@ -27,6 +30,7 @@ test('deployment entry allows only the production frontend origin',async()=>{
 });
 
 test('deployment entry handles preflight before authentication and database access',async()=>{
+ for(const origin of origins) {
  for(const method of ['GET','POST','PATCH','PUT','DELETE','OPTIONS']) {
   const response=await request(app).options('/api/auth/login')
    .set('Origin',origin).set('Access-Control-Request-Method',method)
@@ -38,6 +42,7 @@ test('deployment entry handles preflight before authentication and database acce
   assert.equal(response.text,'');
  }
  await request(app).options('/api/projects').set('Origin',origin).set('Access-Control-Request-Method','PATCH').expect(204);
+ }
 });
 
 test('deployment entry preserves CORS headers on validation, auth, not-found and rate-limit errors',async()=>{
