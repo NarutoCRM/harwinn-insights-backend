@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+enum Outcome {
+  COMPLETE
+  TERMINATE
+  QUOTAFUL
+  DISQUALIFY
+}
+model Admin {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique @db.VarChar(254)
+  passwordHash String
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  sessions AdminSession[]
+}
+model AdminSession {
+  id String @id @default(uuid()) @db.Uuid
+  tokenHash String @unique @db.Char(64)
+  adminId String @db.Uuid
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([expiresAt])
+}
+model Project {
+  id String @id @default(uuid()) @db.Uuid
+  pid String @unique @db.VarChar(128)
+  name String @db.VarChar(200)
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  records TrackingRecord[]
+}
+model TrackingRecord {
+  serial BigInt @id @default(autoincrement())
+  projectId String @db.Uuid
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  uid String @db.VarChar(128)
+  username String? @db.VarChar(200)
+  status Outcome
+  inTime DateTime? @db.Timestamptz(3)
+  outTime DateTime @db.Timestamptz(3)
+  loiSeconds Int?
+  ipAddress String? @db.Inet
+  country String? @db.Char(2)
+  transactionId String @db.VarChar(128)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([projectId, transactionId])
+  @@index([projectId, createdAt, serial])
+  @@index([uid])
+  @@index([status, createdAt])
+  @@index([country, createdAt])
+}
