@@ -8,6 +8,7 @@ import { authController } from "./controllers/auth.js";
 import { trackingController } from "./controllers/tracking.js";
 import { projectInput, projectUpdate, projectId } from "./lib/validation.js";
 import { AppError, errorHandler } from "./lib/errors.js";
+import { cors } from "./lib/cors.js";
 export function createApp({ db, config, logger, countryResolver }) {
   const app = express();
   app.disable("x-powered-by");
@@ -34,6 +35,7 @@ export function createApp({ db, config, logger, countryResolver }) {
     next();
   });
   app.use(helmet());
+  app.use(cors);
   app.use(express.json({ limit: "16kb" }));
   const limiter = (limit) =>
     rateLimit({

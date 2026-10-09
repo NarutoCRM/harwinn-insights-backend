@@ -10,6 +10,52 @@ process.env.OUTCOME_URLS='{}';
 process.env.REDIRECT_PARAM_MAP='{"uid":"uid","transactionId":"transactionId","username":"username","inTime":"inTime"}';
 process.env.TRUST_PROXY='';
 const {default:app}=await import('../index.js');
+const origin='https://harwinn-insights-frontend.vercel.app';
+
+test('deployment entry allows only the production frontend origin',async()=>{
+ const response=await request(app).get('/health').set('Origin',origin).expect(200);
+ assert.equal(response.headers['access-control-allow-origin'],origin);
+ assert.match(response.headers.vary,/\bOrigin\b/);
+ assert.equal(response.headers['access-control-allow-credentials'],undefined);
+ for(const rejected of ['https://attacker.example','null','http://harwinn-insights-frontend.vercel.app',origin+'.attacker.example']) {
+  for(const method of ['get','post','options']) {
+   const denied=await request(app)[method]('/api/auth/login').set('Origin',rejected).expect(403);
+   assert.equal(denied.body.error.code,'CORS_ORIGIN_DENIED');
+   assert.equal(denied.headers['access-control-allow-origin'],undefined);
+  }
+ }
+});
+
+test('deployment entry handles preflight before authentication and database access',async()=>{
+ for(const method of ['GET','POST','PATCH','PUT','DELETE','OPTIONS']) {
+  const response=await request(app).options('/api/auth/login')
+   .set('Origin',origin).set('Access-Control-Request-Method',method)
+   .set('Access-Control-Request-Headers','content-type,authorization').expect(204);
+  assert.equal(response.headers['access-control-allow-origin'],origin);
+  assert.deepEqual(response.headers['access-control-allow-methods'].split(/,\s*/),['GET','POST','PATCH','PUT','DELETE','OPTIONS']);
+  assert.deepEqual(response.headers['access-control-allow-headers'].split(/,\s*/),['Content-Type','Authorization']);
+  assert.equal(response.headers['access-control-allow-credentials'],undefined);
+  assert.equal(response.text,'');
+ }
+ await request(app).options('/api/projects').set('Origin',origin).set('Access-Control-Request-Method','PATCH').expect(204);
+});
+
+test('deployment entry preserves CORS headers on validation, auth, not-found and rate-limit errors',async()=>{
+ for(const [path,status] of [['/api/auth/me',401],['/missing',404]]) {
+  const response=await request(app).get(path).set('Origin',origin).expect(status);
+  assert.equal(response.headers['access-control-allow-origin'],origin);
+ }
+ const invalid=await request(app).post('/api/auth/login').set('Origin',origin)
+  .set('Content-Type','application/json').send('{').expect(400);
+ assert.equal(invalid.headers['access-control-allow-origin'],origin);
+ // Use a fresh shared-app instance so this test does not exhaust other tests' limits.
+ const {appFor,fakeDb}=await import('./helpers.js');
+ const limitedApp=appFor(fakeDb());
+ for(let i=0;i<10;i++)await request(limitedApp).post('/api/auth/login').set('Origin',origin).send({email:'invalid'}).expect(400);
+ const limited=await request(limitedApp).post('/api/auth/login').set('Origin',origin).send({email:'invalid'}).expect(429);
+ assert.equal(limited.headers['access-control-allow-origin'],origin);
+ await request(limitedApp).options('/api/auth/login').set('Origin',origin).set('Access-Control-Request-Method','POST').expect(204);
+});
 test('deployment entry serves health and preserves protected routes without eager connection',async()=>{
  await request(app).get('/health').expect(200,{status:'ok'});
  for(const path of ['/api/projects','/api/records','/api/auth/me'])await request(app).get(path).expect(401);
