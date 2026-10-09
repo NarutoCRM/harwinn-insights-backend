@@ -147,3 +147,21 @@ Prisma CLI and Client remain pinned to 6.12.0. Supabase connections should expli
 Project CRUD now includes UUID lookup, name/active updates and deletion of empty projects. PID is immutable; projects with tracking records return 409 on deletion. Existing migrations and schema are unchanged.
 
 Latest verification: Prisma validation passed; 21 unit tests passed with no failures. The live read-only connection check returned sanitized P1001, so seeding and live integration verification were not performed. Existing integration tests were extended for health/readiness, project CRUD, filtering and logout; they continue to use uniquely identified fixtures and delete only those fixtures. Configure an isolated, already migrated TEST_DATABASE_URL before running test:db; never reset an existing database.
+
+## Vercel backend deployment
+
+The root index.js exports the existing Express app as one Vercel Node.js function. src/server.js remains the local listener. Prisma connects lazily, with one client per warm instance and no per-request disconnect.
+
+Settings: Root Directory is the repository directory containing this package.json (use . if HARWINN is the repository root; HARWINN if the repository contains that folder). Framework Preset: Express. Install Command: npm ci --include=dev. Build Command: npm run build. Output Directory: leave unset; there is no static dist directory. Choose Node.js 22.x or 24.x in Vercel settings.
+
+Required environment variables: DATABASE_URL and a privately rotated, random AUTH_SECRET of at least 32 characters. Set NODE_ENV=production. Optional: SESSION_TTL_HOURS (default 8), REDIRECT_PARAM_MAP, OUTCOME_URLS, TRUST_PROXY. PORT is for local startup only. Do not upload seed credentials or TEST_DATABASE_URL to production. Set environment variables separately for Production and Preview; previews should use an isolated database.
+
+For Prisma 6.12 serverless use an external PostgreSQL pooler and a bounded connection_limit (start with 1, then tune for concurrency and database capacity). Preserve other URL parameters. A Supabase transaction pooler on port 6543 requires pgbouncer=true with this native Prisma client. A session pooler on 5432 also works but holds database connections per session. Require sslmode=require and sslaccept=strict, and include any required trusted certificate file in the function bundle. Configure deployment URLs privately; local .env is unchanged. Prisma schema, auth, and tracking logic are unchanged.
+
+The build only validates the schema and generates Prisma Client; it never migrates or seeds. Apply committed migrations separately using a reviewed migration connection, not the transaction pooler.
+
+GET /health checks process health; GET /ready checks the database. Login is POST /api/auth/login; GET does not log in. Project and record endpoints require a bearer session. Tracking uses GET or POST /redirect/:pid/:status with required mapped UID and transaction ID; literal /redirect// is invalid.
+
+Import the repository into Vercel, select these settings, configure private environment variables, and deploy a Preview first. Verify /health, /ready, login/logout, protected project/record routes and all four tracking statuses using an isolated preview database before production promotion. Public tracking callbacks may require disabling Preview deployment protection or an explicit supported bypass. No deployment has been performed by this change.
+
+Limitations: in-memory rate limits are per function instance and require a shared store or Vercel Firewall policies for a globally enforced limit. Proxy trust stays disabled unless explicit trusted IPs/CIDRs are configured; do not blindly trust forwarded headers. Cross-origin browser access remains unsupported; use same-origin routing or review a narrowly scoped CORS policy separately.

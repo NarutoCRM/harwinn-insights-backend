@@ -17,7 +17,8 @@
     "db:dev": "prisma migrate dev",
     "db:seed": "node prisma/seed.js",
     "db:check": "node scripts/check-database.js",
-    "db:migrate:test": "node scripts/migrate-test-database.js"
+    "db:migrate:test": "node scripts/migrate-test-database.js",
+    "build": "prisma validate && prisma generate"
   },
   "dependencies": {
     "@prisma/client": "6.12.0",
