@@ -30,7 +30,7 @@ model AdminSession {
 }
 model Project {
   id String @id @default(uuid()) @db.Uuid
-  pid String @unique @db.VarChar(128)
+  pid String? @unique @db.VarChar(128)
   name String @db.VarChar(200)
   active Boolean @default(true)
   createdAt DateTime @default(now()) @db.Timestamptz(3)

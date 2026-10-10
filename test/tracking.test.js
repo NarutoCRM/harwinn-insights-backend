@@ -54,3 +54,10 @@ test('authorized filters and pagination isolate projects',async()=>{
  db.trackingRecord.findMany=async()=>{throw Object.assign(new Error('private'),{code:'P1001'});};await request(app).get('/api/records').auth(token,{type:'bearer'}).expect(503);
 });
 test('malformed JSON and unexpected fields return validation errors',async()=>{const app=appFor(fakeDb());await request(app).post('/redirect/A/COMPLETE').set('Content-Type','application/json').send('{').expect(400);await request(app).post('/redirect/A/COMPLETE').send({uid:'u',transactionId:'t',redirectUrl:'https://evil.test'}).expect(400);});
+test('missing Project ID is rejected before looking up any project',async()=>{
+ const db=fakeDb();db.project.findUnique=async()=>{throw new Error('Must not look up a missing ID');};
+ for(const pid of [null,undefined,'','   ']) {
+  await assert.rejects(()=>recordOutcome(db,{pid,status:'COMPLETE',input:{uid:'u',transactionId:'t'}}),error=>error.code==='PROJECT_ID_REQUIRED');
+ }
+ assert.equal(db.records.length,0);
+});

@@ -2,6 +2,8 @@ const frontendOrigins = new Set([
   "https://harwinn-insights-frontend.vercel.app",
   "https://harwinninsights.com",
   "https://www.harwinninsights.com",
+  "http://localhost:5173/",
+  "http://localhost:5174/",
 ]);
 const allowedMethods = "GET, POST, PATCH, PUT, DELETE, OPTIONS";
 const allowedHeaders = "Content-Type, Authorization";

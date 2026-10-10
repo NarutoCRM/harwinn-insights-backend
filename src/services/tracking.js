@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import { AppError } from '../lib/errors.js';
 export async function recordOutcome(db,{pid,status,input,ip,country},now=new Date()) {
+  if (typeof pid !== 'string' || !pid.trim()) throw new AppError(400,'PROJECT_ID_REQUIRED','Project ID is required for tracking');
   const project=await db.project.findUnique({where:{pid}});
   if (!project || !project.active) throw new AppError(404,'PROJECT_NOT_FOUND','Project not found or inactive');
   if (input.inTime && (input.inTime > now || (now-input.inTime)/1000 > 2147483647)) throw new AppError(400,'INVALID_TIME','In-time must precede out-time and fit the supported duration');

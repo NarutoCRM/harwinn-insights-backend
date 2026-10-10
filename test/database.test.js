@@ -45,6 +45,19 @@ test('PostgreSQL persistence, enum, isolation, concurrent uniqueness and constra
   await assert.rejects(()=>db.trackingRecord.create({data:{projectId:projects[0].id,uid:'u',transactionId:'invalid-time',status:'COMPLETE',inTime:new Date(Date.now()+60000),outTime:new Date(),loiSeconds:-60}}));
   const empty=await request(app).post('/api/projects').auth(login.body.token,{type:'bearer'}).send({pid:'empty-'+suffix,name:'Empty test project'}).expect(201);
   projects.push({id:empty.body.id});
+  // Opt-in verification through a separate Prisma client proves database persistence.
+  for(const body of [{name:'Optional integration project'},{name:'Optional integration project',pid:''}]) {
+   const blank=await request(app).post('/api/projects').auth(login.body.token,{type:'bearer'}).send(body).expect(201);
+   projects.push({id:blank.body.id});assert.equal(blank.body.pid,null);
+   await request(app).patch('/api/projects/'+blank.body.id).auth(login.body.token,{type:'bearer'}).send({name:'Saved integration edit',pid:''}).expect(200);
+   const persisted=await reader.project.findUniqueOrThrow({where:{id:blank.body.id}});
+   assert.equal(persisted.name,'Saved integration edit');assert.equal(persisted.pid,null);
+  }
+  await request(app).patch(projectPath).auth(login.body.token,{type:'bearer'}).send({pid:pids[1]}).expect(409);
+  await request(app).patch(projectPath).auth(login.body.token,{type:'bearer'}).send({pid:null,name:'History retained'}).expect(200);
+  assert.equal((await reader.project.findUniqueOrThrow({where:{id:projects[0].id}})).pid,null);
+  assert.equal(await reader.trackingRecord.count({where:{projectId:projects[0].id}}),5);
+  await request(app).post('/redirect/'+pids[0]+'/COMPLETE').send({uid:'u',transactionId:'new'}).expect(404);
   await request(app).delete('/api/projects/'+empty.body.id).auth(login.body.token,{type:'bearer'}).expect(204);
   await request(app).get('/api/projects/'+empty.body.id).auth(login.body.token,{type:'bearer'}).expect(404);
   await request(app).post('/api/auth/logout').auth(login.body.token,{type:'bearer'}).expect(204);
