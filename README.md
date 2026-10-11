@@ -19,17 +19,17 @@ Node.js (22+), Express 5, PostgreSQL and Prisma 6.12. JavaScript ES modules. Bac
 
 ## APIs
 
-| Method | Path | Access / behavior |
-| --- | --- | --- |
-| GET | /health | Process liveness |
-| GET | /ready | Database connectivity; 503 on database errors |
-| POST | /api/auth/login | Email/password; returns random bearer token and expiry |
-| GET | /api/auth/me | Bearer admin session |
-| POST | /api/auth/logout | Bearer session; revokes token, 204 |
-| POST | /api/projects | Bearer session; JSON `{pid,name}` |
-| GET | /api/projects | Bearer session; page, pageSize |
-| GET | /api/records | Bearer session; exact filters pid, uid, status, country; from/to ISO timestamps (inclusive createdAt range); page, pageSize |
-| GET or POST | /redirect/:pid/:status | Public callback foundation; GET query or POST JSON |
+| Method      | Path                   | Access / behavior                                                                                                           |
+| ----------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| GET         | /health                | Process liveness                                                                                                            |
+| GET         | /ready                 | Database connectivity; 503 on database errors                                                                               |
+| POST        | /api/auth/login        | Email/password; returns random bearer token and expiry                                                                      |
+| GET         | /api/auth/me           | Bearer admin session                                                                                                        |
+| POST        | /api/auth/logout       | Bearer session; revokes token, 204                                                                                          |
+| POST        | /api/projects          | Bearer session; JSON `{pid,name}`                                                                                           |
+| GET         | /api/projects          | Bearer session; page, pageSize                                                                                              |
+| GET         | /api/records           | Bearer session; exact filters pid, uid, status, country; from/to ISO timestamps (inclusive createdAt range); page, pageSize |
+| GET or POST | /redirect/:pid/:status | Public callback foundation; GET query or POST JSON                                                                          |
 
 Statuses are case-sensitive COMPLETE, TERMINATE, QUOTAFUL and DISQUALIFY. Our initial API accepts `uid` and `transactionId` (required), `username` and `inTime` (optional). IDs are 1–128 characters, begin with an alphanumeric character and allow letters, digits, underscore, dot, colon, @ and hyphen. These are our contract choices, not assumptions about a client's contract. Duplicate query values, unknown parameters and malformed timestamps are rejected. Missing path segments return 404; missing/invalid input IDs return 400; unknown/inactive PID returns 404. A project must exist before receiving callbacks.
 
@@ -169,5 +169,3 @@ Limitations: in-memory rate limits are per function instance and require a share
 Project Management workflow: admins add the Project ID and Project Name supplied by the client after sharing the agreed platform/tool link. Multiple projects from the same company may omit PIDs; supplied PIDs must be unique and names are not unique. PATCH /api/projects/:id accepts optional pid, name and active fields and rejects empty or invalid updates. Duplicate PIDs on Add/Edit return 409, backed by the existing unique database constraint. PID edits preserve the project UUID, existing tracking records and project-scoped transaction protection; reports follow the updated PID. Old callback links stop resolving after an ID edit, so share regenerated links. Existing rows are unchanged until an admin explicitly edits them. The optional-PID migration drops only the pid NOT NULL constraint.
 
 Optional Project ID: POST accepts omitted, null, empty or whitespace-only pid and stores NULL. PATCH omission retains the existing PID; explicit null/blank clears it. Supplied IDs retain strict validation and database uniqueness. Tracking requires a real PID, never resolves null/blank to a project, and preserves records via the internal UUID when an ID is cleared.
-
-Before enabling blank IDs, generate the updated Prisma client and apply the committed backward-compatible migration with npm run db:migrate through the existing reviewed migration connection. It changes only Project.pid nullability, retaining existing IDs, the unique index and all records. No migration has been applied by this code change. The opt-in PostgreSQL test now verifies blank-ID creation and edits using a second Prisma client; run it only against an isolated migrated test database.
